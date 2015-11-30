@@ -1,0 +1,212 @@
+#**MSDA Data Science Math Bridge**
+##Final Project
+###Logan Thomson
+
+```{r}
+library(hflights)
+library(ggplot2)
+library(MASS)
+```
+
+##**Probability**
+Before caluculating on any fields, look at number of na (not available) values in each column:
+```{r}
+sapply(hflights, function(x) sum(is.na(x)))
+```
+
+###Define Random Variable X and Y
+
+Both variables have the same amount of "not available" values; I did not want to replace them with zeros (or the mean of the actual values), as this would change the results.
+```{r}
+rand_var_x <- na.omit(hflights$ActualElapsedTime)
+rand_var_y <- na.omit(hflights$AirTime)
+```
+
+Check for skew:
+```{r}
+qplot(rand_var_x, geom='density')
+qplot(rand_var_y, geom='density')
+```
+
+The mean is also larger than the median, so we know both variables are positively skewed
+```{r}
+# Summary stats of each variable
+summary(rand_var_x)
+summary(rand_var_y)
+# Quartiles of each variable
+quantile(rand_var_x)
+quantile(rand_var_y)
+```
+So, the third quartile for "Actual Elapsed Time" (x) of flights is 165, and the second quartile of "Air Time" (y) is 107.
+
+###Table Values
+```{r}
+# <= x and <= y
+R1C1 <- sum(rand_var_x <= 165 & rand_var_y <= 107)
+
+# <= x and > y
+R1C2 <- sum(rand_var_x <= 165 & rand_var_y > 107)
+
+# Row 1 Total
+R1C3 <- R1C1 + R1C2
+
+# > x and <= y
+R2C1 <- sum(rand_var_x > 165 & rand_var_y <= 107)
+
+# > x and > y
+R2C2 <- sum(rand_var_x > 165 & rand_var_y > 107)
+
+# Row 2 Total
+R2C3 <- R2C1 + R2C2
+
+# Column Total Rows
+R3C1 <- R1C1 + R2C1
+R3C2 <- R1C2 + R2C2
+R3C3 <- R3C1 + R3C2
+```
+
+###Create Table
+```{r}
+df_rows <- c("X <= x", "X > x", "Total")
+df_cols <- c("Y <= y", "Y > y", "Total")
+
+var_count_df <- data.frame(c(R1C1, R2C1, R3C1), c(R1C2, R2C2, R3C2), c(R1C3, R2C3, R3C3))
+
+rownames(var_count_df) <- df_rows
+colnames(var_count_df) <- df_cols
+```
+
+```{r}
+var_count_df
+```
+
+###Calculate Probabilities
+a) P(X>x|Y>y)
+```{r}
+var_count_df[2,2] / var_count_df[3,2]
+```
+b) P(X>x, Y>y)
+```{r}
+var_count_df[2,2] / var_count_df[3,3]
+```
+c) P(X<x | Y>y)
+```{r}
+var_count_df[1,2] / var_count_df[3,2]
+```
+d) P(X<x | Y>y) is same as c)
+
+###Check for Independence
+Setting the variables
+Only X > x:
+```{r}
+varA <- var_count_df[2,3]
+```
+All values of Y > y:
+```{r}
+varB <- var_count_df[3,2]
+```
+Calculate Probability
+```{r}
+ProbA <- varA / var_count_df[3,3]
+ProbB <- varB / var_count_df[3,3]
+ProbA * ProbB
+```
+P(A|B) is .50068949, P(A) * P(B) is .1233013
+If the variables were independent, then P(B) would have no effect on P(A|B).  Therefore, (A|B) would be equal to P(A), so P(A and B) = P(A) * P(B).  Since they are not equal, the variables are not independent.
+
+###Chi-Square Test
+I'm not too familiar with doing a Chi-squared test by hand, luckily R has a function to do the heavy-lifiting for me. The Chi-squared test is used to determine significant association between two variables.
+```{r}
+chisq.test(rand_var_x, rand_var_y)
+```
+Since the p-value is less than the significance level, then we have to reject the null hypothesis that the variables "Actual Elapsed Time" and "Air Time" are independent.
+
+##Descriptive and Inferential Statistics
+Univariate descriptive statistics explores each variable separately. Basic summary statistics are displayed above in the Probability section. In addition to those, here is a histogram for the general frequency distribution and the variance and standard deviation for each variable. I did not make a frequency table, as this would be very long, however the `table()` function can be used to create this.
+
+###Univariate Descriptive Statistics and Plots
+Variance and Standard Deviation of X
+```{r}
+# Variance
+var(rand_var_x)
+# Std Dev
+sd(rand_var_x)
+```
+Histogram of X with Bin size = 25
+```{r}
+qplot(rand_var_x, geom='histogram', binwidth=25)
+```
+
+Variance and Standard Deviation of Y
+```{r}
+# Variance
+var(rand_var_y)
+# Std Dev
+sd(rand_var_y)
+```
+Histogram of Y with Bin size = 25
+```{r}
+qplot(rand_var_y, geom='histogram', binwidth=25)
+```
+
+```{r, echo=FALSE}
+qplot(rand_var_x, rand_var_y, main='Scatterplot of Random Variables X and Y')
+```
+
+###95% Confidence Interval for Difference in Mean
+
+I knew how to get the 95% confidence interval for a sample mean, but wasn't sure about the difference in mean. A simple internet search turned up the `t.test` function in R.
+```{r}
+t.test(rand_var_x, rand_var_y, conf.level = .95)
+```
+The lower limit of the 95% confidence interval is 20.84, and the upper limit of the 95% confidence interval is 21.52.
+
+###Correlation Matrix
+
+I could test the correlation between my two variables by simply putting them into the `cor` function in R.
+```{r}
+cor(rand_var_x, rand_var_y)
+```
+However, I needed to produce a correlation matrix.  Conveneintly, `cor()` will take a matrix or data frame, so I will simply create a data frame of my two variables, and enter that into the `cor` function:
+```{r}
+xy_matrix <- data.frame(rand_var_x, rand_var_y)
+head(xy_matrix)
+# Now enter it into the cor() fucntion
+cor_matrix <- cor(xy_matrix)
+```
+
+Again, R  has a function to calculate the confidence level between two variables. `cor.test` returns the confidence interval (at 95% by default), as well as the correlation value given above
+```{r}
+cor.test(rand_var_x, rand_var_y, conf.level=.99)
+```
+The lower limit of the 99% confidence interval is .9888, and the upper limit is .9890.  Therefore, we can be fairly certain that the true population correlation lies between the two limits.
+
+Since the correlation is very close to 1, the two variables are positively linearly related. Looking at the scatter plot, we can see that the plots of the various x and y values follows a straight line with a positive slope (up and to the right).
+
+##**Linear Algebra and Correlation**
+
+###Create the Precision Matrix
+We create the precision matrix by inverting our correlation matrix that was made using the `cor` function above. Rather than calculating this by hand (1/ad-bc), We can use the `solve()` function to easily invert the matrix.
+```{r}
+prec_matrix <- solve(cor_matrix)
+prec_matrix
+```
+
+To multiply the matrices, we can simply use `%*%` in R
+```{r}
+# Precision matrix by correlation matrix
+zapsmall(prec_matrix %*% cor_matrix)
+
+# Correlation matrix by precision matrix
+zapsmall(cor_matrix %*% prec_matrix)
+```
+
+##**Calculus-based Probability & Statistics**
+
+###Shifting variable so minimum is above zero.
+Both of the variables I selected have their minimum values above zero, so I did not shift the distribution of either. The `MASS` package has already been loaded, so we can use the `fitdistr` function on either variable.
+```{r}
+fitdistr(rand_var_x, densfun='exponential')
+```
+
+I was not sure how to find the optimal value of lambda - so I am unable to go further.
